@@ -1,0 +1,12 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "shell",
+			"label": "Install expo-location and react-native-maps",
+			"command": "npx expo install expo-location react-native-maps",
+			"group": "build",
+			"isBackground": false
+		}
+	]
+}
