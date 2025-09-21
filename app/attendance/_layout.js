@@ -4,7 +4,9 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 export default function AttendanceLayout() {
   return (
     <Tabs
+      // Áp dụng cho toàn bộ tab
       screenOptions={({ route }) => ({
+        headerShown: false,            // Ẩn header ở đây là đủ
         tabBarIcon: ({ color, size }) => {
           let iconName = 'cloud-outline';
           if (route.name === 'summary') iconName = 'calendar-month-outline';
@@ -17,18 +19,7 @@ export default function AttendanceLayout() {
         tabBarInactiveTintColor: '#bdbdbd',
         tabBarLabelStyle: { fontWeight: 'bold', fontSize: 13 },
         tabBarStyle: { backgroundColor: '#fff' },
-        headerShown: false, // Ẩn header trên cùng
       })}
-      // Ẩn header trên cùng cho toàn bộ tab
-      screenListeners={{
-        state: (e) => {
-          if (e.data?.state?.routes) {
-            e.data.state.routes.forEach(route => {
-              route.options = { ...route.options, headerShown: false };
-            });
-          }
-        },
-      }}
     >
       <Tabs.Screen name="index" options={{ title: 'Dữ Liệu' }} />
       <Tabs.Screen name="summary" options={{ title: 'Tổng Công' }} />

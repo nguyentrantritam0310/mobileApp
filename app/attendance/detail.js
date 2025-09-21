@@ -1,4 +1,6 @@
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
 const fakeDetail = [
   { day: '3', date: '05/08', inout: '08:38 - 12:47', shift: 'n/a', work: '3.37/0.42', color: '#43a047', color2: '#e53935' },
@@ -7,31 +9,50 @@ const fakeDetail = [
 ];
 
 export default function AttendanceDetail() {
+  const router = useRouter();
   return (
-    <ScrollView contentContainerStyle={styles.scrollContent}>
-      <View style={styles.card}>
-        <View style={styles.tableHeader}>
-          <Text style={[styles.th, { flex: 1 }]}>Thứ</Text>
-          <Text style={[styles.th, { flex: 2 }]}>Ngày</Text>
-          <Text style={[styles.th, { flex: 3 }]}>In/Out</Text>
-          <Text style={[styles.th, { flex: 1 }]}>Ca</Text>
-          <Text style={[styles.th, { flex: 2 }]}>Giờ công</Text>
-        </View>
-        {fakeDetail.map((row, idx) => (
-          <View key={idx} style={[styles.tableRow, idx % 2 === 0 && styles.tableRowAlt]}>
-            <Text style={[styles.td, { flex: 1 }]}>{row.day}</Text>
-            <Text style={[styles.td, { flex: 2 }]}>{row.date}</Text>
-            <Text style={[styles.td, { flex: 3 }]}><Text style={{ color: row.color }}>{row.inout.split(' - ')[0]}</Text> - <Text style={{ color: row.color2 }}>{row.inout.split(' - ')[1]}</Text></Text>
-            <Text style={[styles.td, { flex: 1 }]}>{row.shift}</Text>
-            <Text style={[styles.td, { flex: 2 }]}>{row.work}</Text>
-          </View>
-        ))}
+    <View style={{ flex: 1, backgroundColor: '#f6f8fa' }}>
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+          <Icon name="arrow-left" size={28} color="#008080" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>BẢNG CÔNG</Text>
+        <View style={{ width: 28 }} />
       </View>
-    </ScrollView>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+
+        <View style={styles.card}>
+          <View style={styles.tableHeader}>
+            <Text style={[styles.th, { flex: 1 }]}>Thứ</Text>
+            <Text style={[styles.th, { flex: 2 }]}>Ngày</Text>
+            <Text style={[styles.th, { flex: 3 }]}>In/Out</Text>
+            <Text style={[styles.th, { flex: 1 }]}>Ca</Text>
+            <Text style={[styles.th, { flex: 2 }]}>Giờ công</Text>
+          </View>
+          {fakeDetail.map((row, idx) => (
+            <View key={idx} style={[styles.tableRow, idx % 2 === 0 && styles.tableRowAlt]}>
+              <Text style={[styles.td, { flex: 1 }]}>{row.day}</Text>
+              <Text style={[styles.td, { flex: 2 }]}>{row.date}</Text>
+              <Text style={[styles.td, { flex: 3 }]}><Text style={{ color: row.color }}>{row.inout.split(' - ')[0]}</Text> - <Text style={{ color: row.color2 }}>{row.inout.split(' - ')[1]}</Text></Text>
+              <Text style={[styles.td, { flex: 1 }]}>{row.shift}</Text>
+              <Text style={[styles.td, { flex: 2 }]}>{row.work}</Text>
+            </View>
+          ))}
+        </View>
+      </ScrollView>
+    </View>
+
   );
 }
 
 const styles = StyleSheet.create({
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingTop: 18, paddingBottom: 12, backgroundColor: '#fff',
+    borderBottomWidth: 1, borderColor: '#e0e0e0',
+  },
+  backBtn: { padding: 4 },
+  headerTitle: { color: '#008080', fontWeight: 'bold', fontSize: 20, textAlign: 'center', flex: 1 },
   scrollContent: { padding: 16 },
   card: {
     backgroundColor: '#fff',
