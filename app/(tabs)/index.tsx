@@ -1,75 +1,327 @@
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
-import { Image, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { Image, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View, Alert, StatusBar, Dimensions } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from '@react-navigation/native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useAuth } from '../../contexts/AuthContext';
+import HomeHeader from '../../components/common/HomeHeader';
+import api from '../../api';
+
+const { width: screenWidth } = Dimensions.get('window');
 
 const mainIcons = [
-  { key: 'profile', label: 'Hồ sơ', icon: 'account-circle-outline', color: '#1976d2' },
-  { key: 'attendance', label: 'Bảng công', icon: 'calendar-check-outline', color: '#43a047' },
-  { key: 'salary', label: 'Phiếu lương', icon: 'cash-multiple', color: '#fb8c00' },
+  { 
+    key: 'profile', 
+    label: 'Hồ sơ', 
+    icon: 'account-circle-outline', 
+    primaryColor: '#3498db',
+    secondaryColor: '#2980b9',
+    gradient: ['#3498db', '#2980b9'],
+    bgGradient: ['#e3f2fd', '#f0f8ff']
+  },
+  { 
+    key: 'attendance', 
+    label: 'Bảng công', 
+    icon: 'calendar-check-outline', 
+    primaryColor: '#2c3e50',
+    secondaryColor: '#34495e',
+    gradient: ['#2c3e50', '#34495e'],
+    bgGradient: ['#ecf0f1', '#f8f9fa']
+  },
+  { 
+    key: 'salary', 
+    label: 'Phiếu lương', 
+    icon: 'cash-multiple', 
+    primaryColor: '#27ae60',
+    secondaryColor: '#229954',
+    gradient: ['#27ae60', '#229954'],
+    bgGradient: ['#e8f5e8', '#f0fdf4']
+  },
 ];
 
 const subIcons = [
-  { key: 'leave', label: 'Nghỉ phép', color: ['#ff8a80', '#ff5252'], icon: 'beach', iconLib: 'MaterialCommunityIcons' },
-  { key: 'overtime', label: 'Tăng ca', color: ['#80d8ff', '#0091ea'], icon: 'clock-plus-outline', iconLib: 'MaterialCommunityIcons' },
+  { 
+    key: 'leave', 
+    label: 'Nghỉ phép', 
+    icon: 'beach', 
+    primaryColor: '#3498db',
+    secondaryColor: '#2980b9',
+    gradient: ['#3498db', '#2980b9'],
+    bgGradient: ['#e3f2fd', '#f0f8ff']
+  },
+  { 
+    key: 'overtime', 
+    label: 'Tăng ca', 
+    icon: 'clock-plus-outline', 
+    primaryColor: '#2c3e50',
+    secondaryColor: '#34495e',
+    gradient: ['#2c3e50', '#34495e'],
+    bgGradient: ['#ecf0f1', '#f8f9fa']
+  },
 ];
 
 export default function HomeScreen() {
-  const [checkedIn, setCheckedIn] = useState(true);
-  const userName = 'Nguyễn Trần Trí Tâm';
+  const [checkedIn, setCheckedIn] = useState(false); // Mặc định chưa checkin
+  const [actualCheckInTime, setActualCheckInTime] = useState(null); // Giờ checkin thực tế
+  const { user, logout, isAuthenticated, isLoading } = useAuth();
+  const userName = user?.fullName || 'Người dùng';
   const checkInTime = '08:40';
   const router = useRouter();
-  return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Header */}
-        <View style={styles.headerWrap}>
-          <View style={styles.headerRow}>
-            <View style={styles.menuIcon} />
-            <View style={styles.avatarWrap}>
-              <Image source={require('@/assets/images/partial-react-logo.png')} style={styles.avatar} />
-            </View>
-          </View>
-          <Text style={styles.hello}>Xin chào</Text>
-          <Text style={styles.userName}>{userName}</Text>
+
+  // Kiểm tra authentication state và chuyển hướng nếu cần
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.replace('/login' as any);
+    } else if (isAuthenticated && user?.id) {
+      // Kiểm tra trạng thái checkin khi đã đăng nhập
+      checkTodayAttendanceStatus();
+    }
+  }, [isAuthenticated, isLoading, router, user?.id]);
+
+  // Kiểm tra trạng thái checkin từ API
+  const checkTodayAttendanceStatus = async () => {
+    if (!user?.id) return;
+    
+    try {
+      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+      const response = await api.get(`/AttendanceData`);
+      
+      if (response.data && response.data.length > 0) {
+        // Filter dữ liệu của user hôm nay
+        const todayAttendance = response.data.find((item: any) => 
+          item.employeeCode === user.id && 
+          item.workDate === today
+        );
+        
+        if (todayAttendance) {
+          const hasCheckIn = todayAttendance.checkInTime !== null;
+          const hasCheckOut = todayAttendance.checkOutTime !== null;
+          
+          console.log('📊 Today attendance status:', {
+            hasCheckIn,
+            hasCheckOut,
+            checkInTime: todayAttendance.checkInTime,
+            checkOutTime: todayAttendance.checkOutTime
+          });
+          
+          if (hasCheckIn && !hasCheckOut) {
+            // Đã checkin nhưng chưa checkout
+            setCheckedIn(true);
+            setActualCheckInTime(todayAttendance.checkInTime);
+          } else if (hasCheckIn && hasCheckOut) {
+            // Đã checkin và checkout rồi
+            setCheckedIn(false);
+            setActualCheckInTime(todayAttendance.checkInTime);
+          } else {
+            // Chưa checkin
+            setCheckedIn(false);
+            setActualCheckInTime(null);
+          }
+        } else {
+          // Không có dữ liệu hôm nay, kiểm tra AsyncStorage
+          const today = new Date().toDateString();
+          const checkinData = await AsyncStorage.getItem(`checkin_${today}`);
+          if (checkinData) {
+            const parsed = JSON.parse(checkinData);
+            console.log('📱 No API data for today, using AsyncStorage:', parsed);
+            setCheckedIn(parsed.checkedIn);
+            if (parsed.checkInTime) {
+              setActualCheckInTime(parsed.checkInTime);
+            }
+          } else {
+            setCheckedIn(false);
+            setActualCheckInTime(null);
+          }
+        }
+      } else {
+        // Không có dữ liệu từ API, kiểm tra AsyncStorage
+        const today = new Date().toDateString();
+        const checkinData = await AsyncStorage.getItem(`checkin_${today}`);
+        if (checkinData) {
+          const parsed = JSON.parse(checkinData);
+          console.log('📱 No API data, using AsyncStorage:', parsed);
+          setCheckedIn(parsed.checkedIn);
+          if (parsed.checkInTime) {
+            setActualCheckInTime(parsed.checkInTime);
+          }
+        } else {
+          setCheckedIn(false);
+          setActualCheckInTime(null);
+        }
+      }
+    } catch (error) {
+      console.error('Error checking attendance status:', error);
+      // Fallback: sử dụng AsyncStorage
+      const today = new Date().toDateString();
+      const checkinData = await AsyncStorage.getItem(`checkin_${today}`);
+      if (checkinData) {
+        const parsed = JSON.parse(checkinData);
+        console.log('📱 AsyncStorage checkin data:', parsed);
+        setCheckedIn(parsed.checkedIn);
+        if (parsed.checkInTime) {
+          setActualCheckInTime(parsed.checkInTime);
+        }
+      }
+    }
+  };
+
+  // Reload checkin status khi focus vào screen
+  useFocusEffect(
+    React.useCallback(() => {
+      checkTodayAttendanceStatus();
+    }, [user?.id])
+  );
+
+  // Save trạng thái checkin vào AsyncStorage
+  const saveCheckinStatus = async (status: boolean) => {
+    try {
+      const today = new Date().toDateString();
+      const checkinData = {
+        checkedIn: status,
+        timestamp: new Date().toISOString()
+      };
+      await AsyncStorage.setItem(`checkin_${today}`, JSON.stringify(checkinData));
+      setCheckedIn(status);
+    } catch (error) {
+      console.error('Error saving checkin status:', error);
+    }
+  };
+
+  // Hiển thị loading nếu đang kiểm tra authentication
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <Text>Đang tải...</Text>
         </View>
+      </SafeAreaView>
+    );
+  }
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Đăng xuất',
+      'Bạn có chắc chắn muốn đăng xuất?',
+      [
+        {
+          text: 'Hủy',
+          style: 'cancel',
+        },
+        {
+          text: 'Đăng xuất',
+          style: 'destructive',
+          onPress: async () => {
+            await logout();
+            // Chuyển hướng về trang login sau khi đăng xuất
+            router.replace('/login' as any);
+          },
+        },
+      ]
+    );
+  };
+  return (
+    <LinearGradient
+      colors={['#ecf0f1', '#f8f9fa', '#ffffff']}
+      style={styles.container}
+    >
+      <StatusBar barStyle="dark-content" backgroundColor="#ecf0f1" />
+      <SafeAreaView style={styles.safeArea}>
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+        {/* Header */}
+        <HomeHeader 
+          userName={userName}
+          onLogoutPress={handleLogout}
+          avatarSource={require('@/assets/images/partial-react-logo.png')}
+        />
 
         {/* Main icons */}
-        <View style={styles.mainIconCard}>
-          {mainIcons.map(item => (
-            <TouchableOpacity
-              key={item.key}
-              style={styles.mainIconBtn}
-            onPress={() => {
-                if (item.key === 'attendance') router.push('/attendance');
-                if (item.key === 'profile') router.push('/profile' as any);
-                if (item.key === 'salary') router.push('/payslip' as any);
-              }}
-            >
-              <View style={[styles.mainIconCircle, { backgroundColor: item.color + '22' }]}> 
-                <Icon name={item.icon} size={28} color={item.color} />
-              </View>
-              <Text style={[styles.mainIconLabel, { color: item.color }]}>{item.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* Task notification */}
-        <View style={styles.taskBox}>
-          <Text style={styles.taskText}>Bạn có <Text style={styles.taskCount}>0</Text> công việc cần thực hiện </Text>
-          <TouchableOpacity><Text style={styles.taskAll}>Xem tất cả</Text></TouchableOpacity>
+        <View style={styles.mainIconContainer}>
+          <View style={styles.mainIconGrid}>
+            {mainIcons.map((item, index) => (
+              <TouchableOpacity
+                key={item.key}
+                style={styles.mainIconBtn}
+                onPress={() => {
+                  if (item.key === 'attendance') router.push('/attendance');
+                  if (item.key === 'profile') router.push('/profile');
+                  if (item.key === 'salary') router.push('/payslip');
+                }}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={item.bgGradient as any}
+                  style={styles.mainIconCircle}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <LinearGradient
+                    colors={item.gradient as any}
+                    style={styles.mainIconInner}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  >
+                    <Icon name={item.icon} size={24} color="#ffffff" />
+                  </LinearGradient>
+                </LinearGradient>
+                <Text style={[styles.mainIconLabel, { color: item.primaryColor }]}>{item.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
 
         {/* Checkin/Checkout */}
         <TouchableOpacity
-          style={[styles.checkButton, checkedIn ? styles.checkedOut : styles.checkedIn]}
-          onPress={() => router.push('/checkin' as any)}
+          style={styles.checkButton}
+          onPress={() => {
+            const mode = checkedIn ? 'checkout' : 'checkin';
+            router.push({
+              pathname: '/checkin' as any,
+              params: { mode }
+            });
+          }}
+          activeOpacity={0.85}
         >
-          <View style={styles.checkBtnRow}>
-            <Text style={styles.checkBtnIcon}>🕒</Text>
-            <Text style={styles.checkButtonText}>{checkedIn ? 'Check Out' : 'Check In'}</Text>
-            <Text style={styles.checkTime}>Giờ check in {checkInTime}</Text>
-          </View>
+          <BlurView intensity={15} style={styles.checkButtonBlur}>
+            <LinearGradient
+              colors={checkedIn ? ['#e8f5e8', '#f0fdf4'] : ['#e3f2fd', '#f0f8ff']}
+              style={styles.checkButtonContent}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <View style={styles.checkBtnRow}>
+                <LinearGradient
+                  colors={checkedIn ? ['#27ae60', '#229954'] : ['#3498db', '#2980b9']}
+                  style={styles.checkIconContainer}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <Icon name="clock-outline" size={28} color="#ffffff" />
+                </LinearGradient>
+                <View style={styles.checkTextContainer}>
+                  <Text style={[styles.checkButtonText, checkedIn ? styles.checkedOutText : styles.checkedInText]}>
+                    {checkedIn ? 'Check Out' : 'Check In'}
+                  </Text>
+                  <Text style={[styles.checkTime, checkedIn ? styles.checkedOutTime : styles.checkedInTime]}>
+                    {checkedIn && actualCheckInTime 
+                      ? `Giờ check in: ${(actualCheckInTime as string).substring(0, 5)}`
+                      : checkedIn 
+                        ? 'Giờ check in: --:--'
+                        : 'Chưa check in'
+                    }
+                  </Text>
+                </View>
+                <View style={styles.checkArrowContainer}>
+                  <Icon name="chevron-right" size={24} color={checkedIn ? "#27ae60" : "#3498db"} />
+                </View>
+              </View>
+            </LinearGradient>
+          </BlurView>
         </TouchableOpacity>
 
         {/* Sub icons */}
@@ -79,264 +331,272 @@ export default function HomeScreen() {
               key={item.key}
               style={[
                 styles.subIconBtn,
-                { backgroundColor: item.color[0] },
                 idx === 0 ? { marginRight: 12 } : {},
               ]}
               onPress={() => {
                 if (item.key === 'leave') router.push('/leave');
                 if (item.key === 'overtime') router.push('/overtime');
               }}
+              activeOpacity={0.8}
             >
-              <Icon name={item.icon} size={32} color={'#fff'} style={styles.subIconEmoji} />
-              <Text style={styles.subIconLabel}>{item.label}</Text>
+              <BlurView intensity={10} style={styles.subIconBlur}>
+                <LinearGradient
+                  colors={item.bgGradient as any}
+                  style={styles.subIconContent}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <LinearGradient
+                    colors={item.gradient as any}
+                    style={styles.subIconInner}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  >
+                    <Icon name={item.icon} size={32} color="#ffffff" style={styles.subIconEmoji} />
+                  </LinearGradient>
+                  <Text style={[styles.subIconLabel, { color: item.primaryColor }]}>{item.label}</Text>
+                </LinearGradient>
+              </BlurView>
             </TouchableOpacity>
           ))}
         </View>
 
-        {/* Decorative progress bar UI */}
-        <View style={styles.progressBox}>
-          <Text style={styles.progressTitle}>Mức độ hoàn thành tháng này</Text>
-          <View style={styles.progressBarBg}>
-            <View style={styles.progressBarFill} />
-          </View>
-          <Text style={styles.progressPercent}>72%</Text>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+        </ScrollView>
+      </SafeAreaView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f6f8fa',
+  },
+  safeArea: {
+    flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   scrollContent: {
     padding: 0,
     alignItems: 'center',
-    backgroundColor: '#f6f8fa',
-  },
-  headerWrap: {
-    width: '100%',
-    backgroundColor: '#008080',
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-    paddingTop: 32,
     paddingBottom: 32,
-    alignItems: 'center',
-    marginBottom: 16,
-    position: 'relative',
   },
-  headerRow: {
-    flexDirection: 'row',
-    width: '100%',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    marginBottom: 12,
-  },
-  menuIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#fff',
-    opacity: 0.2,
-  },
-  avatarWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#fff',
+  mainIconContainer: {
+    marginHorizontal: 20,
+    marginTop: 8,
+    marginBottom: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
   },
-  avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-  },
-  hello: {
-    color: '#fff',
-    fontSize: 18,
-    marginBottom: 2,
-    fontWeight: '400',
-  },
-  userName: {
-    color: '#fff',
-    fontSize: 26,
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  mainIconCard: {
+  mainIconGrid: {
     flexDirection: 'row',
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    marginHorizontal: 16,
-    marginTop: -32,
-    marginBottom: 16,
-    padding: 12,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
-    justifyContent: 'space-between',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 20,
+    width: '100%',
   },
   mainIconBtn: {
-    flex: 1,
     alignItems: 'center',
+    paddingVertical: 0,
+    paddingHorizontal: 12,
+    minWidth: 100,
   },
   mainIconCircle: {
-    width: 40,
-    height: 40,
+    width: 68,
+    height: 68,
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 4,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 8,
   },
-  mainIconEmoji: {
-    fontSize: 28,
-    fontWeight: 'bold',
+  mainIconInner: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
   mainIconLabel: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
-    marginTop: 2,
-  },
-  taskBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f1f8ff',
-    borderRadius: 10,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    justifyContent: 'space-between',
-  },
-  taskText: {
-    fontSize: 15,
-    color: '#333',
-  },
-  taskCount: {
-    color: '#e53935',
-    fontWeight: 'bold',
-  },
-  taskAll: {
-    color: '#1976d2',
-    fontWeight: 'bold',
-    fontSize: 15,
+    textAlign: 'center',
+    lineHeight: 18,
+    letterSpacing: 0.2,
   },
   checkButton: {
     width: '90%',
     alignSelf: 'center',
-    paddingVertical: 18,
-    borderRadius: 16,
-    alignItems: 'center',
-    marginBottom: 18,
-    shadowColor: '#e53935',
+    borderRadius: 20,
+    marginBottom: 28,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
     shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  checkButtonBlur: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  checkButtonContent: {
+    paddingVertical: 24,
+    borderRadius: 20,
+    alignItems: 'center',
   },
   checkedIn: {
-    backgroundColor: '#1a73e8',
+    // Style for checked in state
   },
   checkedOut: {
-    backgroundColor: '#e53935',
+    // Style for checked out state
   },
   checkBtnRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     width: '100%',
-    paddingHorizontal: 16,
+    paddingHorizontal: 24,
   },
-  checkBtnIcon: {
-    fontSize: 22,
-    color: '#fff',
-    marginRight: 10,
+  checkIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 20,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  checkButtonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-    letterSpacing: 1,
+  checkedInIcon: {
+    backgroundColor: '#dbeafe',
+  },
+  checkedOutIcon: {
+    backgroundColor: '#fecaca',
+  },
+  checkTextContainer: {
     flex: 1,
   },
+  checkButtonText: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 6,
+    letterSpacing: 0.3,
+  },
+  checkedInText: {
+    color: '#3498db',
+  },
+  checkedOutText: {
+    color: '#27ae60',
+  },
   checkTime: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '400',
+    fontSize: 15,
+    fontWeight: '500',
+    opacity: 0.8,
+  },
+  checkedInTime: {
+    color: '#2c3e50',
+  },
+  checkedOutTime: {
+    color: '#2c3e50',
+  },
+  checkArrowContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   subIconGrid: {
     flexDirection: 'row',
-    justifyContent: 'center',
-    marginHorizontal: 16,
+    justifyContent: 'space-between',
+    marginHorizontal: 20,
     marginTop: 8,
-    marginBottom: 24,
+    marginBottom: 32,
   },
   subIconBtn: {
-    width: 160,
-    aspectRatio: 2.5,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    marginBottom: 18,
-    flexDirection: 'row',
+    width: '48%',
+    borderRadius: 16,
+    marginBottom: 20,
     shadowColor: '#000',
-    shadowOpacity: 0.08,
+    shadowOffset: {
+      width: 0,
+      height: 6,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  subIconBlur: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  subIconContent: {
+    flex: 1,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'column',
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+    minHeight: 120,
+  },
+  subIconInner: {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.2,
     shadowRadius: 8,
-    elevation: 2,
-    paddingHorizontal: 18,
-    paddingVertical: 18,
+    elevation: 4,
   },
   subIconEmoji: {
-    marginRight: 14,
-  },
-  progressBox: {
-    width: '90%',
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    alignSelf: 'center',
-    padding: 18,
-    marginBottom: 24,
-    shadowColor: '#1976d2',
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 1,
-    alignItems: 'center',
-  },
-  progressTitle: {
-    fontWeight: 'bold',
-    color: '#1976d2',
-    marginBottom: 10,
-    fontSize: 15,
-  },
-  progressBarBg: {
-    width: '100%',
-    height: 16,
-    backgroundColor: '#e3eafc',
-    borderRadius: 8,
-    overflow: 'hidden',
-    marginBottom: 8,
-  },
-  progressBarFill: {
-    width: '72%',
-    height: '100%',
-    backgroundColor: '#1976d2',
-    borderRadius: 8,
-  },
-  progressPercent: {
-    color: '#1976d2',
-    fontWeight: 'bold',
-    fontSize: 16,
+    // Icon styling handled in component
   },
   subIconLabel: {
     fontSize: 15,
-    color: '#333',
     fontWeight: '600',
     textAlign: 'center',
-    marginLeft: 10,
+    letterSpacing: 0.2,
   },
 });

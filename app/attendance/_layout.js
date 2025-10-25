@@ -12,7 +12,6 @@ export default function AttendanceLayout() {
           if (route.name === 'summary') iconName = 'calendar-month-outline';
           if (route.name === 'detail') iconName = 'file-document-outline';
           if (route.name === 'overtime') iconName = 'clock-plus-outline';
-          if (route.name === 'feedback') iconName = 'message-outline';
           return <Icon name={iconName} size={size} color={color} />;
         },
         tabBarActiveTintColor: '#008080',
@@ -25,7 +24,6 @@ export default function AttendanceLayout() {
       <Tabs.Screen name="summary" options={{ title: 'Tổng Công' }} />
       <Tabs.Screen name="detail" options={{ title: 'Chi Tiết' }} />
       <Tabs.Screen name="overtime" options={{ title: 'Tăng Ca' }} />
-      <Tabs.Screen name="feedback" options={{ title: 'Phản Ánh' }} />
     </Tabs>
   );
 }

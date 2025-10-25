@@ -6,21 +6,22 @@ export const useWorkShift = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    const fetchWorkShifts = async () => {
-      try {
-        const data = await getWorkShifts();
-        setWorkShifts(data);
-      } catch (err) {
-        console.error("Error fetching work shifts:", JSON.stringify(err, null, 2));
-        setError(err);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const fetchWorkShifts = async () => {
+    try {
+      setLoading(true);
+      const data = await getWorkShifts();
+      setWorkShifts(data);
+    } catch (err) {
+      console.error("Error fetching work shifts:", JSON.stringify(err, null, 2));
+      setError(err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchWorkShifts();
   }, []);
 
-  return { workShifts, loading, error };
+  return { workShifts, loading, error, fetchWorkShifts };
 };

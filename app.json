@@ -35,6 +35,14 @@
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
+      ],
+      [
+        "react-native-vision-camera",
+        {
+          "cameraPermissionText": "Cho phép ứng dụng truy cập camera để chụp ảnh chấm công.",
+          "enableCodeScanner": false,
+          "enableFrameProcessors": true
+        }
       ]
     ],
     "experiments": {
